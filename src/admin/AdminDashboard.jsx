@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('pesanan');
@@ -44,16 +44,14 @@ export default function AdminDashboard() {
   const [inputNama, setInputNama] = useState('');
   const [inputSekolah, setInputSekolah] = useState('');
   const [inputLayanan, setInputLayanan] = useState('PPT');
-  const [inputPaket, setInputPaket] = useState('Standar');
   const [inputTotal, setInputTotal] = useState(25000);
   const [inputTopik, setInputTopik] = useState('');
   const [inputDeadline, setInputDeadline] = useState('');
 
-  // State Form Portofolio Baru
+  // State Form Portofolio Baru (Cukup 1 input Google Drive)
   const [judulBaru, setJudulBaru] = useState('');
   const [kategoriBaru, setKategoriBaru] = useState('Infografis dan Poster');
   const [tipeMedia, setTipeMedia] = useState('image');
-  const [urlThumbnail, setUrlThumbnail] = useState('');
   const [linkDriveBaru, setLinkDriveBaru] = useState('');
 
   // Fungsi Tambah Pesanan Manual
@@ -69,7 +67,7 @@ export default function AdminDashboard() {
       nama: inputNama,
       sekolah: inputSekolah,
       layanan: inputLayanan,
-      paket: inputPaket,
+      paket: 'Standar',
       total: Number(inputTotal),
       bayar: Number(inputTotal) <= 100000 ? 'Lunas' : 'Belum bayar',
       status: 'Baru',
@@ -89,15 +87,14 @@ export default function AdminDashboard() {
       setActiveTab('pesanan');
     } catch (err) {
       console.error("Gagal tambah pesanan:", err);
-      alert("Gagal menyimpan ke database.");
     }
   };
 
-  // Fungsi Tambah Portofolio ke Firebase
+  // Fungsi Tambah Portofolio ke Firebase (Cukup 1 link untuk thumbnail & drive)
   const tambahPortofolio = async (e) => {
     e.preventDefault();
-    if (!judulBaru || !urlThumbnail) {
-      alert("Mohon isi Judul dan URL Gambar Thumbnail.");
+    if (!judulBaru || !linkDriveBaru) {
+      alert("Mohon isi Judul dan Link Google Drive.");
       return;
     }
 
@@ -107,13 +104,12 @@ export default function AdminDashboard() {
         judul: judulBaru,
         kategori: kategoriBaru,
         type: tipeMedia,
-        url: urlThumbnail,
-        linkDrive: linkDriveBaru || urlThumbnail
+        url: linkDriveBaru,       // Otomatis diproses jadi thumbnail di Home.jsx
+        linkDrive: linkDriveBaru  // Tujuan saat tombol Buka File Asli diklik
       };
 
       await addDoc(collection(db, "portofolio"), itemBaru);
       setJudulBaru('');
-      setUrlThumbnail('');
       setLinkDriveBaru('');
       alert("Portofolio berhasil ditambahkan!");
     } catch (err) {
@@ -367,7 +363,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* TAB 4: KELOLA PORTOFOLIO */}
+        {/* TAB 4: KELOLA PORTOFOLIO (Cukup 1 input Google Drive) */}
         {activeTab === 'portofolio' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit">
@@ -387,12 +383,9 @@ export default function AdminDashboard() {
                   </select>
                 </div>
                 <div>
-                  <label className="block font-medium mb-1">URL Gambar Thumbnail (Wajib link langsung jpg/png)</label>
-                  <input type="text" placeholder="https://images.unsplash.com/..." value={urlThumbnail} onChange={(e) => setUrlThumbnail(e.target.value)} className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none" required />
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Link Google Drive / File Asli</label>
-                  <input type="text" placeholder="https://drive.google.com/..." value={linkDriveBaru} onChange={(e) => setLinkDriveBaru(e.target.value)} className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none" />
+                  <label className="block font-medium mb-1">Link Google Drive File</label>
+                  <input type="text" placeholder="https://drive.google.com/file/d/.../view" value={linkDriveBaru} onChange={(e) => setLinkDriveBaru(e.target.value)} className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none" required />
+                  <p className="text-[11px] text-slate-400 mt-1">Cukup paste 1 link Google Drive, thumbnail & tombol akan otomatis aktif.</p>
                 </div>
                 <button type="submit" className="w-full bg-[#961214] text-white font-bold py-3 rounded-xl hover:bg-[#7a0e10] transition shadow">
                   Simpan Portofolio

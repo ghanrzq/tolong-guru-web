@@ -40,6 +40,17 @@ const dataLayanan = {
   }
 };
 
+// Fungsi otomatis mengubah link Google Drive menjadi thumbnail gambar langsung
+const getGoogleDriveThumbnail = (url) => {
+  if (!url) return '';
+  const match = url.match(/\/d\/(.*?)\/|\?id\=(.*?)(&|$)/);
+  const fileId = match ? (match[1] || match[2]) : null;
+  if (fileId) {
+    return `https://lh3.googleusercontent.com/d/` + fileId;
+  }
+  return url;
+};
+
 export default function Home() {
   const [layanan, setLayanan] = useState('PPT');
   const [paket, setPaket] = useState(0);
@@ -115,7 +126,6 @@ export default function Home() {
       sumber: 'Website (WhatsApp)'
     };
 
-    // Simpan ke Firebase Firestore (potongan kode gambar 2 ditaruh di sini)
     try {
       await addDoc(collection(db, "pesanan"), pesananBaru);
     } catch (err) {
@@ -240,16 +250,14 @@ export default function Home() {
               portofolioTampil.map((item) => (
                 <div key={item.idDoc || item.id} className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm bg-[#FFFBF8] hover:shadow-md transition flex flex-col justify-between">
                   <div className="bg-slate-900 relative overflow-hidden flex items-center justify-center p-2 min-h-[260px]">
-                    {item.type === 'image' ? (
+                    {item.type === 'embed' ? (
+                      <iframe src={item.url} title={item.judul} className="w-full h-52"></iframe>
+                    ) : (
                       <img 
-                        src={item.url} 
+                        src={getGoogleDriveThumbnail(item.url || item.linkDrive)} 
                         alt={item.judul} 
                         className="w-full h-full max-h-[350px] object-contain rounded-lg transition-transform duration-300 hover:scale-105" 
                       />
-                    ) : item.type === 'embed' ? (
-                      <iframe src={item.url} title={item.judul} className="w-full h-52"></iframe>
-                    ) : (
-                      <div className="text-sm font-bold text-gray-600 bg-white px-4 py-2 rounded-lg shadow">Pratinjau Website / App</div>
                     )}
                   </div>
                   <div className="p-6 flex flex-col justify-between flex-1 bg-white">
