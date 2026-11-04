@@ -5,30 +5,26 @@ import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, onSnapshot } fr
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('pesanan');
 
-  // State Pesanan dari Firebase
+  // State Pesanan & Portofolio dari Firebase
   const [pesananList, setPesananList] = useState([]);
-  
-  // State Portofolio dari Firebase
   const [portofolioList, setPortofolioList] = useState([]);
 
   // Ambil Data Real-time dari Firebase Firestore
   useEffect(() => {
-    // Listener Pesanan
     const unsubPesanan = onSnapshot(collection(db, "pesanan"), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
       setPesananList(data);
     }, (error) => {
-      console.log("Menggunakan fallback localStorage untuk pesanan karena offline/error:", error);
+      console.log("Fallback localStorage pesanan:", error);
       const saved = localStorage.getItem('tolongGuruPesanan');
       if (saved) setPesananList(JSON.parse(saved));
     });
 
-    // Listener Portofolio
     const unsubPortofolio = onSnapshot(collection(db, "portofolio"), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
       setPortofolioList(data);
     }, (error) => {
-      console.log("Menggunakan fallback localStorage untuk portofolio:", error);
+      console.log("Fallback localStorage portofolio:", error);
       const saved = localStorage.getItem('tolongGuruPortofolio');
       if (saved) setPortofolioList(JSON.parse(saved));
     });
@@ -44,12 +40,58 @@ export default function AdminDashboard() {
   const [filterStatus, setFilterStatus] = useState('Semua Status');
   const [filterBayar, setFilterBayar] = useState('Semua Pembayaran');
 
-  // State Form Portofolio Baru (Terpisah antara Thumbnail & Link Drive)
+  // State Form Input Pesanan Manual oleh Admin
+  const [inputNama, setInputNama] = useState('');
+  const [inputSekolah, setInputSekolah] = useState('');
+  const [inputLayanan, setInputLayanan] = useState('PPT');
+  const [inputPaket, setInputPaket] = useState('Standar');
+  const [inputTotal, setInputTotal] = useState(25000);
+  const [inputTopik, setInputTopik] = useState('');
+  const [inputDeadline, setInputDeadline] = useState('');
+
+  // State Form Portofolio Baru
   const [judulBaru, setJudulBaru] = useState('');
   const [kategoriBaru, setKategoriBaru] = useState('Infografis dan Poster');
   const [tipeMedia, setTipeMedia] = useState('image');
   const [urlThumbnail, setUrlThumbnail] = useState('');
   const [linkDriveBaru, setLinkDriveBaru] = useState('');
+
+  // Fungsi Tambah Pesanan Manual
+  const tambahPesananManual = async (e) => {
+    e.preventDefault();
+    if (!inputNama || !inputSekolah) {
+      alert("Mohon isi Nama Pemesan dan Sekolah.");
+      return;
+    }
+
+    const pesananBaru = {
+      id: `TG-${Date.now().toString().slice(-6)}`,
+      nama: inputNama,
+      sekolah: inputSekolah,
+      layanan: inputLayanan,
+      paket: inputPaket,
+      total: Number(inputTotal),
+      bayar: Number(inputTotal) <= 100000 ? 'Lunas' : 'Belum bayar',
+      status: 'Baru',
+      tanggalMasuk: new Date().toISOString().split('T')[0],
+      deadline: inputDeadline || '-',
+      topik: inputTopik || '-',
+      sumber: 'Manual Admin'
+    };
+
+    try {
+      await addDoc(collection(db, "pesanan"), pesananBaru);
+      alert("Pesanan manual berhasil ditambahkan!");
+      setInputNama('');
+      setInputSekolah('');
+      setInputTopik('');
+      setInputDeadline('');
+      setActiveTab('pesanan');
+    } catch (err) {
+      console.error("Gagal tambah pesanan:", err);
+      alert("Gagal menyimpan ke database.");
+    }
+  };
 
   // Fungsi Tambah Portofolio ke Firebase
   const tambahPortofolio = async (e) => {
@@ -73,77 +115,51 @@ export default function AdminDashboard() {
       setJudulBaru('');
       setUrlThumbnail('');
       setLinkDriveBaru('');
-      alert("Portofolio berhasil ditambahkan secara online!");
+      alert("Portofolio berhasil ditambahkan!");
     } catch (err) {
       console.error("Gagal menambah portofolio:", err);
-      alert("Gagal menyimpan ke database online. Pastikan koneksi internet aktif.");
     }
   };
 
   // Fungsi Hapus Portofolio
-  const hapusPortofolio = async (idDoc, idAlt) => {
+  const hapusPortofolio = async (idDoc) => {
     if (confirm("Yakin ingin menghapus portofolio ini?")) {
       try {
-        if (idDoc) {
-          await deleteDoc(doc(db, "portofolio", idDoc));
-        }
-        setPortofolioList(portofolioList.filter(item => item.idDoc !== idDoc && item.id !== idAlt));
+        await deleteDoc(doc(db, "portofolio", idDoc));
       } catch (err) {
         console.error("Gagal menghapus:", err);
       }
     }
   };
 
-  // Fungsi Ubah Status Pesanan
+  // Fungsi Update Status & Pembayaran
   const updateStatusPesanan = async (idDoc, statusBaru) => {
-    try {
-      if (idDoc) {
-        await updateDoc(doc(db, "pesanan", idDoc), { status: statusBaru });
-      }
-      setPesananList(pesananList.map(item => item.idDoc === idDoc ? { ...item, status: statusBaru } : item));
-    } catch (err) {
-      console.error("Gagal update status:", err);
-    }
+    await updateDoc(doc(db, "pesanan", idDoc), { status: statusBaru });
   };
 
-  // Fungsi Ubah Status Bayar
   const updateBayarPesanan = async (idDoc, bayarBaru) => {
-    try {
-      if (idDoc) {
-        await updateDoc(doc(db, "pesanan", idDoc), { bayar: bayarBaru });
-      }
-      setPesananList(pesananList.map(item => item.idDoc === idDoc ? { ...item, bayar: bayarBaru } : item));
-    } catch (err) {
-      console.error("Gagal update bayar:", err);
-    }
+    await updateDoc(doc(db, "pesanan", idDoc), { bayar: bayarBaru });
   };
 
-  // Fungsi Hapus Pesanan
   const hapusPesanan = async (idDoc) => {
-    if (confirm("Yakin ingin menghapus data pesanan ini?")) {
-      try {
-        if (idDoc) {
-          await deleteDoc(doc(db, "pesanan", idDoc));
-        }
-        setPesananList(pesananList.filter(item => item.idDoc !== idDoc));
-      } catch (err) {
-        console.error("Gagal menghapus pesanan:", err);
-      }
+    if (confirm("Yakin ingin menghapus pesanan ini?")) {
+      await deleteDoc(doc(db, "pesanan", idDoc));
     }
   };
 
   // Filter Data Pesanan
   const pesananFiltered = pesananList.filter(item => {
-    const namaItem = item.nama || '';
-    const sekolahItem = item.sekolah || '';
-    const idItem = item.id || '';
-    const matchKeyword = namaItem.toLowerCase().includes(cariKeyword.toLowerCase()) || 
-                         sekolahItem.toLowerCase().includes(cariKeyword.toLowerCase()) || 
-                         idItem.toLowerCase().includes(cariKeyword.toLowerCase());
+    const matchKeyword = (item.nama || '').toLowerCase().includes(cariKeyword.toLowerCase()) || 
+                         (item.sekolah || '').toLowerCase().includes(cariKeyword.toLowerCase()) || 
+                         (item.id || '').toLowerCase().includes(cariKeyword.toLowerCase());
     const matchStatus = filterStatus === 'Semua Status' || item.status === filterStatus;
     const matchBayar = filterBayar === 'Semua Pembayaran' || item.bayar === filterBayar;
     return matchKeyword && matchStatus && matchBayar;
   });
+
+  // Hitung Rekap
+  const totalPendapatan = pesananList.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
+  const totalPesananSelesai = pesananList.filter(item => item.status === 'Selesai').length;
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-800">
@@ -152,23 +168,33 @@ export default function AdminDashboard() {
       <header className="bg-[#961214] text-white py-4 px-6 shadow-md flex justify-between items-center">
         <div>
           <h1 className="font-extrabold text-xl tracking-tight">Admin Dashboard Tolong Guru</h1>
-          <p className="text-xs text-red-200">Kelola pesanan masuk dan portofolio publik secara sinkron</p>
+          <p className="text-xs text-red-200">Kelola pesanan, input manual, rekap, dan portofolio</p>
         </div>
-        <div className="flex items-center gap-4">
-          <a href="/" className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-4 py-2 rounded-lg transition border border-white/20">
-            ← Kembali ke Website Utama
-          </a>
-        </div>
+        <a href="/" className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-4 py-2 rounded-lg transition border border-white/20">
+          ← Kembali ke Website Utama
+        </a>
       </header>
 
-      {/* KONTROL TAB */}
+      {/* KONTROL TAB LENGKAP */}
       <div className="max-w-7xl mx-auto px-6 mt-6">
-        <div className="flex gap-3 border-b border-slate-200 pb-3">
+        <div className="flex flex-wrap gap-3 border-b border-slate-200 pb-3">
           <button 
             onClick={() => setActiveTab('pesanan')}
             className={`px-5 py-2.5 rounded-xl font-bold text-sm transition ${activeTab === 'pesanan' ? 'bg-[#961214] text-white shadow' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}
           >
-            📋 Kelola Pesanan ({pesananList.length})
+            📋 Daftar Pesanan ({pesananList.length})
+          </button>
+          <button 
+            onClick={() => setActiveTab('input')}
+            className={`px-5 py-2.5 rounded-xl font-bold text-sm transition ${activeTab === 'input' ? 'bg-[#961214] text-white shadow' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}
+          >
+            ➕ Input Pesanan Manual
+          </button>
+          <button 
+            onClick={() => setActiveTab('rekap')}
+            className={`px-5 py-2.5 rounded-xl font-bold text-sm transition ${activeTab === 'rekap' ? 'bg-[#961214] text-white shadow' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}
+          >
+            📊 Rekap & Statistik
           </button>
           <button 
             onClick={() => setActiveTab('portofolio')}
@@ -182,11 +208,9 @@ export default function AdminDashboard() {
       {/* KONTEN UTAMA */}
       <main className="max-w-7xl mx-auto px-6 py-6">
         
-        {/* TAB PESANAN */}
+        {/* TAB 1: DAFTAR PESANAN */}
         {activeTab === 'pesanan' && (
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
-            
-            {/* Filter & Pencarian Lengkap */}
             <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
               <input 
                 type="text" 
@@ -210,7 +234,6 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Tabel Pesanan */}
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">
                 <thead>
@@ -230,10 +253,11 @@ export default function AdminDashboard() {
                     </tr>
                   ) : (
                     pesananFiltered.map((item) => (
-                      <tr key={item.idDoc || item.id} className="hover:bg-slate-50/80">
+                      <tr key={item.idDoc} className="hover:bg-slate-50/80">
                         <td className="p-3 align-top">
                           <span className="font-bold text-[#961214]">{item.id}</span>
                           <div className="text-xs text-slate-400">{item.tanggalMasuk}</div>
+                          <div className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded w-fit mt-1">{item.sumber || 'Website'}</div>
                         </td>
                         <td className="p-3 align-top">
                           <div className="font-bold">{item.nama}</div>
@@ -277,113 +301,124 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
-
           </div>
         )}
 
-        {/* TAB PORTOFOLIO */}
+        {/* TAB 2: INPUT PESANAN MANUAL */}
+        {activeTab === 'input' && (
+          <div className="max-w-xl mx-auto bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+            <h3 className="font-extrabold text-xl mb-6 text-slate-800">Form Input Pesanan Manual</h3>
+            <form onSubmit={tambahPesananManual} className="space-y-4 text-sm">
+              <div>
+                <label className="block font-medium mb-1">Nama Pemesan</label>
+                <input type="text" value={inputNama} onChange={(e) => setInputNama(e.target.value)} placeholder="Contoh: Siti Rahma, S.Pd." className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none" required />
+              </div>
+              <div>
+                <label className="block font-medium mb-1">Asal Sekolah</label>
+                <input type="text" value={inputSekolah} onChange={(e) => setInputSekolah(e.target.value)} placeholder="Contoh: SMPN 2 Bandung" className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none" required />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-medium mb-1">Layanan</label>
+                  <select value={inputLayanan} onChange={(e) => setInputLayanan(e.target.value)} className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none">
+                    <option value="PPT">PPT</option>
+                    <option value="Infografis dan Poster">Infografis dan Poster</option>
+                    <option value="Video Pembelajaran">Video Pembelajaran</option>
+                    <option value="Take Konten ke Sekolah + Edit">Take Konten + Edit</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-medium mb-1">Total Harga (Rp)</label>
+                  <input type="number" value={inputTotal} onChange={(e) => setInputTotal(e.target.value)} className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none" required />
+                </div>
+              </div>
+              <div>
+                <label className="block font-medium mb-1">Topik / Catatan</label>
+                <textarea value={inputTopik} onChange={(e) => setInputTopik(e.target.value)} placeholder="Catatan pesanan..." className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none h-24 resize-none"></textarea>
+              </div>
+              <div>
+                <label className="block font-medium mb-1">Deadline / Tenggat Waktu</label>
+                <input type="date" value={inputDeadline} onChange={(e) => setInputDeadline(e.target.value)} className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none" />
+              </div>
+              <button type="submit" className="w-full bg-[#961214] text-white font-bold py-3.5 rounded-xl hover:bg-[#7a0e10] transition shadow mt-4">
+                Simpan Pesanan Manual
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* TAB 3: REKAP & STATISTIK */}
+        {activeTab === 'rekap' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <p className="text-xs font-bold text-slate-400 uppercase">Total Pesanan Masuk</p>
+                <p className="text-4xl font-extrabold text-black mt-2">{pesananList.length}</p>
+              </div>
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <p className="text-xs font-bold text-slate-400 uppercase">Pesanan Selesai</p>
+                <p className="text-4xl font-extrabold text-green-600 mt-2">{totalPesananSelesai}</p>
+              </div>
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <p className="text-xs font-bold text-slate-400 uppercase">Estimasi Pendapatan</p>
+                <p className="text-3xl font-extrabold text-[#961214] mt-2">Rp{totalPendapatan.toLocaleString('id-ID')}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: KELOLA PORTOFOLIO */}
         {activeTab === 'portofolio' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* Form Tambah Portofolio */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit">
               <h3 className="font-extrabold text-lg mb-4 text-slate-800">Tambah Portofolio Baru</h3>
               <form onSubmit={tambahPortofolio} className="space-y-4 text-sm">
                 <div>
                   <label className="block font-medium mb-1">Judul Karya</label>
-                  <input 
-                    type="text" 
-                    placeholder="Contoh: Infografis Pembelajaran IPA" 
-                    value={judulBaru} 
-                    onChange={(e) => setJudulBaru(e.target.value)} 
-                    className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none"
-                  />
+                  <input type="text" placeholder="Contoh: Infografis IPA" value={judulBaru} onChange={(e) => setJudulBaru(e.target.value)} className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none" required />
                 </div>
-
                 <div>
                   <label className="block font-medium mb-1">Kategori</label>
-                  <select 
-                    value={kategoriBaru} 
-                    onChange={(e) => setKategoriBaru(e.target.value)} 
-                    className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none"
-                  >
+                  <select value={kategoriBaru} onChange={(e) => setKategoriBaru(e.target.value)} className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none">
                     <option value="Infografis dan Poster">Infografis dan Poster</option>
                     <option value="Video Pembelajaran">Video Pembelajaran</option>
                     <option value="PPT">PPT</option>
                     <option value="Website">Website</option>
                   </select>
                 </div>
-
                 <div>
-                  <label className="block font-medium mb-1">Tipe Media</label>
-                  <select 
-                    value={tipeMedia} 
-                    onChange={(e) => setTipeMedia(e.target.value)} 
-                    className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none"
-                  >
-                    <option value="image">Gambar / Poster (Thumbnail)</option>
-                    <option value="embed">Video / Embed YouTube</option>
-                  </select>
+                  <label className="block font-medium mb-1">URL Gambar Thumbnail (Wajib link langsung jpg/png)</label>
+                  <input type="text" placeholder="https://images.unsplash.com/..." value={urlThumbnail} onChange={(e) => setUrlThumbnail(e.target.value)} className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none" required />
                 </div>
-
-                {/* Input Thumbnail Khusus Gambar */}
-                <div>
-                  <label className="block font-medium mb-1">URL Gambar Thumbnail (Untuk Tampilan Web)</label>
-                  <input 
-                    type="text" 
-                    placeholder="https://images.unsplash.com/... atau link gambar jpg/png" 
-                    value={urlThumbnail} 
-                    onChange={(e) => setUrlThumbnail(e.target.value)} 
-                    className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">Masukkan link gambar langsung (berakhiran .jpg/.png) agar tampil rapi di web utama.</p>
-                </div>
-
-                {/* Input Link Google Drive Asli */}
                 <div>
                   <label className="block font-medium mb-1">Link Google Drive / File Asli</label>
-                  <input 
-                    type="text" 
-                    placeholder="https://drive.google.com/file/d/..." 
-                    value={linkDriveBaru} 
-                    onChange={(e) => setLinkDriveBaru(e.target.value)} 
-                    className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">Link tujuan saat tombol "Buka File Asli" diklik pengunjung.</p>
+                  <input type="text" placeholder="https://drive.google.com/..." value={linkDriveBaru} onChange={(e) => setLinkDriveBaru(e.target.value)} className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none" />
                 </div>
-
                 <button type="submit" className="w-full bg-[#961214] text-white font-bold py-3 rounded-xl hover:bg-[#7a0e10] transition shadow">
-                  Simpan Portofolio Online
+                  Simpan Portofolio
                 </button>
               </form>
             </div>
 
-            {/* Daftar Portofolio */}
             <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
               <h3 className="font-extrabold text-lg mb-4 text-slate-800">Daftar Portofolio Publik ({portofolioList.length})</h3>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {portofolioList.length === 0 ? (
-                  <div className="col-span-full text-center py-12 text-slate-400">Belum ada portofolio yang ditambahkan.</div>
+                  <div className="col-span-full text-center py-12 text-slate-400">Belum ada portofolio.</div>
                 ) : (
                   portofolioList.map((item) => (
-                    <div key={item.idDoc || item.id} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 flex flex-col justify-between">
+                    <div key={item.idDoc} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 flex flex-col justify-between">
                       <div className="h-44 bg-slate-900 relative flex items-center justify-center p-2">
-                        {item.type === 'image' ? (
-                          <img src={item.url} alt={item.judul} className="w-full h-full object-contain rounded-lg" />
-                        ) : (
-                          <iframe src={item.url} title={item.judul} className="w-full h-full"></iframe>
-                        )}
+                        <img src={item.url} alt={item.judul} className="w-full h-full object-contain rounded-lg" />
                       </div>
                       <div className="p-4 flex flex-col justify-between flex-1 bg-white">
                         <div>
                           <span className="text-[10px] font-bold text-[#961214] bg-red-50 px-2 py-0.5 rounded uppercase">{item.kategori}</span>
                           <h4 className="font-bold text-base mt-2 leading-snug">{item.judul}</h4>
-                          <p className="text-xs text-slate-400 mt-1 truncate">Drive: {item.linkDrive || item.url}</p>
                         </div>
                         <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center">
-                          <span className="text-xs text-slate-500">ID: {item.idDoc || item.id}</span>
-                          <button onClick={() => hapusPortofolio(item.idDoc, item.id)} className="text-xs text-red-600 font-bold hover:text-red-800 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition">
+                          <span className="text-xs text-slate-400">ID: {item.idDoc.slice(0, 6)}</span>
+                          <button onClick={() => hapusPortofolio(item.idDoc)} className="text-xs text-red-600 font-bold hover:text-red-800 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition">
                             Hapus Karya
                           </button>
                         </div>
@@ -393,7 +428,6 @@ export default function AdminDashboard() {
                 )}
               </div>
             </div>
-
           </div>
         )}
 
