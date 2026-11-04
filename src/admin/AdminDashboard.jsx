@@ -1,93 +1,145 @@
 import { useState, useEffect } from 'react';
+import { db } from '../firebase/config';
+import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('pesanan');
 
-  // State Pesanan (Sinkron dengan localStorage & Home.jsx)
-  const [pesananList, setPesananList] = useState(() => {
-    const saved = localStorage.getItem('tolongGuruPesanan');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // State Pesanan dari Firebase
+  const [pesananList, setPesananList] = useState([]);
+  
+  // State Portofolio dari Firebase
+  const [portofolioList, setPortofolioList] = useState([]);
 
+  // Ambil Data Real-time dari Firebase Firestore
   useEffect(() => {
-    localStorage.setItem('tolongGuruPesanan', JSON.stringify(pesananList));
-  }, [pesananList]);
+    // Listener Pesanan
+    const unsubPesanan = onSnapshot(collection(db, "pesanan"), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
+      setPesananList(data);
+    }, (error) => {
+      console.log("Menggunakan fallback localStorage untuk pesanan karena offline/error:", error);
+      const saved = localStorage.getItem('tolongGuruPesanan');
+      if (saved) setPesananList(JSON.parse(saved));
+    });
 
-  // State Portofolio (Sinkron dengan localStorage & Home.jsx)
-  const [portofolioList, setPortofolioList] = useState(() => {
-    const saved = localStorage.getItem('tolongGuruPortofolio');
-    return saved ? JSON.parse(saved) : [];
-  });
+    // Listener Portofolio
+    const unsubPortofolio = onSnapshot(collection(db, "portofolio"), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
+      setPortofolioList(data);
+    }, (error) => {
+      console.log("Menggunakan fallback localStorage untuk portofolio:", error);
+      const saved = localStorage.getItem('tolongGuruPortofolio');
+      if (saved) setPortofolioList(JSON.parse(saved));
+    });
 
-  useEffect(() => {
-    localStorage.setItem('tolongGuruPortofolio', JSON.stringify(portofolioList));
-  }, [portofolioList]);
+    return () => {
+      unsubPesanan();
+      unsubPortofolio();
+    };
+  }, []);
 
   // State Filter & Pencarian Pesanan
   const [cariKeyword, setCariKeyword] = useState('');
   const [filterStatus, setFilterStatus] = useState('Semua Status');
   const [filterBayar, setFilterBayar] = useState('Semua Pembayaran');
 
-  // State Form Portofolio Baru (Ditambah linkDriveBaru)
+  // State Form Portofolio Baru (Terpisah antara Thumbnail & Link Drive)
   const [judulBaru, setJudulBaru] = useState('');
   const [kategoriBaru, setKategoriBaru] = useState('Infografis dan Poster');
   const [tipeMedia, setTipeMedia] = useState('image');
-  const [urlMedia, setUrlMedia] = useState('');
+  const [urlThumbnail, setUrlThumbnail] = useState('');
   const [linkDriveBaru, setLinkDriveBaru] = useState('');
 
-  // Fungsi Tambah Portofolio
-  const tambahPortofolio = (e) => {
+  // Fungsi Tambah Portofolio ke Firebase
+  const tambahPortofolio = async (e) => {
     e.preventDefault();
-    if (!judulBaru || !urlMedia) {
-      alert("Mohon isi Judul dan URL Gambar Pratinjau.");
+    if (!judulBaru || !urlThumbnail) {
+      alert("Mohon isi Judul dan URL Gambar Thumbnail.");
       return;
     }
 
-    const itemBaru = {
-      id: Date.now(),
-      judul: judulBaru,
-      kategori: kategoriBaru,
-      type: tipeMedia,
-      url: urlMedia,
-      linkDrive: linkDriveBaru || urlMedia // Jika link drive kosong, arahkan ke url gambar
-    };
+    try {
+      const itemBaru = {
+        id: Date.now(),
+        judul: judulBaru,
+        kategori: kategoriBaru,
+        type: tipeMedia,
+        url: urlThumbnail,
+        linkDrive: linkDriveBaru || urlThumbnail
+      };
 
-    setPortofolioList([itemBaru, ...portofolioList]);
-    setJudulBaru('');
-    setUrlMedia('');
-    setLinkDriveBaru('');
-    alert("Portofolio berhasil ditambahkan!");
+      await addDoc(collection(db, "portofolio"), itemBaru);
+      setJudulBaru('');
+      setUrlThumbnail('');
+      setLinkDriveBaru('');
+      alert("Portofolio berhasil ditambahkan secara online!");
+    } catch (err) {
+      console.error("Gagal menambah portofolio:", err);
+      alert("Gagal menyimpan ke database online. Pastikan koneksi internet aktif.");
+    }
   };
 
   // Fungsi Hapus Portofolio
-  const hapusPortofolio = (id) => {
+  const hapusPortofolio = async (idDoc, idAlt) => {
     if (confirm("Yakin ingin menghapus portofolio ini?")) {
-      setPortofolioList(portofolioList.filter(item => item.id !== id));
+      try {
+        if (idDoc) {
+          await deleteDoc(doc(db, "portofolio", idDoc));
+        }
+        setPortofolioList(portofolioList.filter(item => item.idDoc !== idDoc && item.id !== idAlt));
+      } catch (err) {
+        console.error("Gagal menghapus:", err);
+      }
     }
   };
 
   // Fungsi Ubah Status Pesanan
-  const updateStatusPesanan = (id, statusBaru) => {
-    setPesananList(pesananList.map(item => item.id === id ? { ...item, status: statusBaru } : item));
+  const updateStatusPesanan = async (idDoc, statusBaru) => {
+    try {
+      if (idDoc) {
+        await updateDoc(doc(db, "pesanan", idDoc), { status: statusBaru });
+      }
+      setPesananList(pesananList.map(item => item.idDoc === idDoc ? { ...item, status: statusBaru } : item));
+    } catch (err) {
+      console.error("Gagal update status:", err);
+    }
   };
 
   // Fungsi Ubah Status Bayar
-  const updateBayarPesanan = (id, bayarBaru) => {
-    setPesananList(pesananList.map(item => item.id === id ? { ...item, bayar: bayarBaru } : item));
+  const updateBayarPesanan = async (idDoc, bayarBaru) => {
+    try {
+      if (idDoc) {
+        await updateDoc(doc(db, "pesanan", idDoc), { bayar: bayarBaru });
+      }
+      setPesananList(pesananList.map(item => item.idDoc === idDoc ? { ...item, bayar: bayarBaru } : item));
+    } catch (err) {
+      console.error("Gagal update bayar:", err);
+    }
   };
 
   // Fungsi Hapus Pesanan
-  const hapusPesanan = (id) => {
+  const hapusPesanan = async (idDoc) => {
     if (confirm("Yakin ingin menghapus data pesanan ini?")) {
-      setPesananList(pesananList.filter(item => item.id !== id));
+      try {
+        if (idDoc) {
+          await deleteDoc(doc(db, "pesanan", idDoc));
+        }
+        setPesananList(pesananList.filter(item => item.idDoc !== idDoc));
+      } catch (err) {
+        console.error("Gagal menghapus pesanan:", err);
+      }
     }
   };
 
   // Filter Data Pesanan
   const pesananFiltered = pesananList.filter(item => {
-    const matchKeyword = item.nama.toLowerCase().includes(cariKeyword.toLowerCase()) || 
-                         item.sekolah.toLowerCase().includes(cariKeyword.toLowerCase()) || 
-                         item.id.toLowerCase().includes(cariKeyword.toLowerCase());
+    const namaItem = item.nama || '';
+    const sekolahItem = item.sekolah || '';
+    const idItem = item.id || '';
+    const matchKeyword = namaItem.toLowerCase().includes(cariKeyword.toLowerCase()) || 
+                         sekolahItem.toLowerCase().includes(cariKeyword.toLowerCase()) || 
+                         idItem.toLowerCase().includes(cariKeyword.toLowerCase());
     const matchStatus = filterStatus === 'Semua Status' || item.status === filterStatus;
     const matchBayar = filterBayar === 'Semua Pembayaran' || item.bayar === filterBayar;
     return matchKeyword && matchStatus && matchBayar;
@@ -100,7 +152,7 @@ export default function AdminDashboard() {
       <header className="bg-[#961214] text-white py-4 px-6 shadow-md flex justify-between items-center">
         <div>
           <h1 className="font-extrabold text-xl tracking-tight">Admin Dashboard Tolong Guru</h1>
-          <p className="text-xs text-red-200">Kelola pesanan masuk dan portofolio publik</p>
+          <p className="text-xs text-red-200">Kelola pesanan masuk dan portofolio publik secara sinkron</p>
         </div>
         <div className="flex items-center gap-4">
           <a href="/" className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-4 py-2 rounded-lg transition border border-white/20">
@@ -134,7 +186,7 @@ export default function AdminDashboard() {
         {activeTab === 'pesanan' && (
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
             
-            {/* Filter & Pencarian */}
+            {/* Filter & Pencarian Lengkap */}
             <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
               <input 
                 type="text" 
@@ -178,7 +230,7 @@ export default function AdminDashboard() {
                     </tr>
                   ) : (
                     pesananFiltered.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50/80">
+                      <tr key={item.idDoc || item.id} className="hover:bg-slate-50/80">
                         <td className="p-3 align-top">
                           <span className="font-bold text-[#961214]">{item.id}</span>
                           <div className="text-xs text-slate-400">{item.tanggalMasuk}</div>
@@ -196,7 +248,7 @@ export default function AdminDashboard() {
                           <div className="font-bold">Rp{item.total?.toLocaleString('id-ID')}</div>
                           <select 
                             value={item.bayar} 
-                            onChange={(e) => updateBayarPesanan(item.id, e.target.value)}
+                            onChange={(e) => updateBayarPesanan(item.idDoc, e.target.value)}
                             className={`text-xs mt-1 font-bold px-2 py-1 rounded-md border outline-none ${item.bayar === 'Lunas' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}
                           >
                             <option value="Lunas">Lunas</option>
@@ -206,7 +258,7 @@ export default function AdminDashboard() {
                         <td className="p-3 align-top">
                           <select 
                             value={item.status} 
-                            onChange={(e) => updateStatusPesanan(item.id, e.target.value)}
+                            onChange={(e) => updateStatusPesanan(item.idDoc, e.target.value)}
                             className="text-xs font-bold px-2 py-1 rounded-md border border-slate-200 bg-slate-50 outline-none"
                           >
                             <option value="Baru">Baru</option>
@@ -215,7 +267,7 @@ export default function AdminDashboard() {
                           </select>
                         </td>
                         <td className="p-3 align-top text-center">
-                          <button onClick={() => hapusPesanan(item.id)} className="text-xs text-red-600 hover:text-red-800 font-bold bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition">
+                          <button onClick={() => hapusPesanan(item.idDoc)} className="text-xs text-red-600 hover:text-red-800 font-bold bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition">
                             Hapus
                           </button>
                         </td>
@@ -269,23 +321,25 @@ export default function AdminDashboard() {
                     onChange={(e) => setTipeMedia(e.target.value)} 
                     className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none"
                   >
-                    <option value="image">Gambar / Poster (URL Gambar)</option>
+                    <option value="image">Gambar / Poster (Thumbnail)</option>
                     <option value="embed">Video / Embed YouTube</option>
                   </select>
                 </div>
 
+                {/* Input Thumbnail Khusus Gambar */}
                 <div>
-                  <label className="block font-medium mb-1">URL Gambar Pratinjau (Thumbnail)</label>
+                  <label className="block font-medium mb-1">URL Gambar Thumbnail (Untuk Tampilan Web)</label>
                   <input 
                     type="text" 
-                    placeholder="https://images.unsplash.com/..." 
-                    value={urlMedia} 
-                    onChange={(e) => setUrlMedia(e.target.value)} 
+                    placeholder="https://images.unsplash.com/... atau link gambar jpg/png" 
+                    value={urlThumbnail} 
+                    onChange={(e) => setUrlThumbnail(e.target.value)} 
                     className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none"
                   />
+                  <p className="text-[11px] text-slate-400 mt-1">Masukkan link gambar langsung (berakhiran .jpg/.png) agar tampil rapi di web utama.</p>
                 </div>
 
-                {/* Input Khusus Link Google Drive */}
+                {/* Input Link Google Drive Asli */}
                 <div>
                   <label className="block font-medium mb-1">Link Google Drive / File Asli</label>
                   <input 
@@ -295,11 +349,11 @@ export default function AdminDashboard() {
                     onChange={(e) => setLinkDriveBaru(e.target.value)} 
                     className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none"
                   />
-                  <p className="text-[11px] text-slate-400 mt-1">Link tujuan saat tombol "Buka File Asli" diklik.</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Link tujuan saat tombol "Buka File Asli" diklik pengunjung.</p>
                 </div>
 
                 <button type="submit" className="w-full bg-[#961214] text-white font-bold py-3 rounded-xl hover:bg-[#7a0e10] transition shadow">
-                  Simpan Portofolio
+                  Simpan Portofolio Online
                 </button>
               </form>
             </div>
@@ -313,7 +367,7 @@ export default function AdminDashboard() {
                   <div className="col-span-full text-center py-12 text-slate-400">Belum ada portofolio yang ditambahkan.</div>
                 ) : (
                   portofolioList.map((item) => (
-                    <div key={item.id} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 flex flex-col justify-between">
+                    <div key={item.idDoc || item.id} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 flex flex-col justify-between">
                       <div className="h-44 bg-slate-900 relative flex items-center justify-center p-2">
                         {item.type === 'image' ? (
                           <img src={item.url} alt={item.judul} className="w-full h-full object-contain rounded-lg" />
@@ -328,8 +382,8 @@ export default function AdminDashboard() {
                           <p className="text-xs text-slate-400 mt-1 truncate">Drive: {item.linkDrive || item.url}</p>
                         </div>
                         <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center">
-                          <span className="text-xs text-slate-500">ID: {item.id}</span>
-                          <button onClick={() => hapusPortofolio(item.id)} className="text-xs text-red-600 font-bold hover:text-red-800 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition">
+                          <span className="text-xs text-slate-500">ID: {item.idDoc || item.id}</span>
+                          <button onClick={() => hapusPortofolio(item.idDoc, item.id)} className="text-xs text-red-600 font-bold hover:text-red-800 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition">
                             Hapus Karya
                           </button>
                         </div>

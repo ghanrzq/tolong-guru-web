@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { db } from '../firebase/config';
+import { collection, onSnapshot, addDoc } from 'firebase/firestore';
 
 const dataLayanan = {
   'PPT': {
@@ -53,18 +55,24 @@ export default function Home() {
   const [portofolioPublik, setPortofolioPublik] = useState([]);
   const [kategoriFilter, setKategoriFilter] = useState('Semua');
 
+  // Ambil Portofolio Publik dari Firebase Firestore secara real-time
   useEffect(() => {
-    const saved = localStorage.getItem('tolongGuruPortofolio');
-    if (saved) {
-      setPortofolioPublik(JSON.parse(saved));
-    } else {
-      setPortofolioPublik([]); // Ubah menjadi kosong agar tidak memunculkan data contoh otomatis
-    }
+    const unsub = onSnapshot(collection(db, "portofolio"), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
+      setPortofolioPublik(data);
+    }, (error) => {
+      console.log("Fallback localStorage portofolio:", error);
+      const saved = localStorage.getItem('tolongGuruPortofolio');
+      if (saved) setPortofolioPublik(JSON.parse(saved));
+      else setPortofolioPublik([]);
+    });
+
+    return () => unsub();
   }, []);
 
   const portofolioTampil = kategoriFilter === 'Semua' 
     ? portofolioPublik 
-    : portofolioPublik.filter(item => item.kategori.toLowerCase().includes(kategoriFilter.toLowerCase()) || item.kategori === kategoriFilter);
+    : portofolioPublik.filter(item => item.kategori?.toLowerCase().includes(kategoriFilter.toLowerCase()) || item.kategori === kategoriFilter);
 
   const layananTerpilih = dataLayanan[layanan];
   const paketTerpilih = layananTerpilih.paket[paket] || layananTerpilih.paket[0];
@@ -82,13 +90,13 @@ export default function Home() {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
   };
 
-  const kirimWhatsApp = () => {
+  // Fungsi Kirim Pesanan ke Firebase & WhatsApp
+  const kirimWhatsApp = async () => {
     if (!nama || !sekolah) {
       alert("Mohon isi Nama dan Sekolah terlebih dahulu.");
       return;
     }
 
-    // 1. Buat objek data pesanan baru
     const pesananBaru = {
       id: `TG-${Date.now().toString().slice(-6)}`,
       nama: nama,
@@ -107,19 +115,21 @@ export default function Home() {
       sumber: 'Website (WhatsApp)'
     };
 
-    // 2. Ambil data pesanan lama dari localStorage, lalu tambahkan yang baru
-    const existingPesanan = JSON.parse(localStorage.getItem('tolongGuruPesanan')) || [];
-    const updatedPesanan = [pesananBaru, ...existingPesanan];
-    localStorage.setItem('tolongGuruPesanan', JSON.stringify(updatedPesanan));
+    // Simpan ke Firebase Firestore (potongan kode gambar 2 ditaruh di sini)
+    try {
+      await addDoc(collection(db, "pesanan"), pesananBaru);
+    } catch (err) {
+      console.log("Simpan ke localStorage cadangan karena offline");
+      const existingPesanan = JSON.parse(localStorage.getItem('tolongGuruPesanan')) || [];
+      localStorage.setItem('tolongGuruPesanan', JSON.stringify([pesananBaru, ...existingPesanan]));
+    }
 
-    // 3. Buka WhatsApp
     const nomorWA = "6283878207277";
     const statusBayarWA = totalHarga <= 100000 ? "Lunas di awal" : "DP 50% / Lunas di awal";
     const teksPesan = `Halo Admin Tolong Guru, saya ingin memesan:\n\n*Nama:* ${nama}\n*Sekolah:* ${sekolah}\n*Topik:* ${topik}\n*Dibutuhkan tanggal:* ${tanggal}\n*Catatan:* ${catatan}\n\n*Detail Pesanan:*\nLayanan: ${layanan}\nPaket: ${paketTerpilih.nama}\nJumlah: ${jumlah} ${layananTerpilih.unit}\n*Total:* ${formatRupiah(totalHarga)} (${statusBayarWA})\n\nApakah bisa dibantu?`;
     
     window.open(`https://wa.me/${nomorWA}?text=${encodeURIComponent(teksPesan)}`, '_blank');
     
-    // Reset form setelah dikirim
     setNama('');
     setSekolah('');
     setTopik('');
@@ -228,7 +238,7 @@ export default function Home() {
               <div className="col-span-full text-center py-12 text-gray-400">Belum ada karya dalam kategori ini.</div>
             ) : (
               portofolioTampil.map((item) => (
-                <div key={item.id} className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm bg-[#FFFBF8] hover:shadow-md transition flex flex-col justify-between">
+                <div key={item.idDoc || item.id} className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm bg-[#FFFBF8] hover:shadow-md transition flex flex-col justify-between">
                   <div className="bg-slate-900 relative overflow-hidden flex items-center justify-center p-2 min-h-[260px]">
                     {item.type === 'image' ? (
                       <img 
@@ -249,7 +259,7 @@ export default function Home() {
                     </div>
                     <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
                       <a 
-                        href={item.linkDrive || item.url} // Menggunakan link khusus Drive jika ada, fallback ke url gambar
+                        href={item.linkDrive || item.url} 
                         target="_blank" 
                         rel="noreferrer" 
                         className="text-xs font-bold text-[#961214] hover:text-[#7a0e10] flex items-center gap-1 bg-red-50 px-3 py-2 rounded-lg transition"
