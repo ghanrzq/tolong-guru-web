@@ -1,285 +1,223 @@
 import { useState, useEffect } from 'react';
 
 export default function AdminDashboard() {
-  const [tabAktif, setTabAktif] = useState('pesanan');
+  const [activeTab, setActiveTab] = useState('pesanan');
 
-  // State Pesanan
+  // State Pesanan (Sinkron dengan localStorage & Home.jsx)
   const [pesananList, setPesananList] = useState(() => {
     const saved = localStorage.getItem('tolongGuruPesanan');
     return saved ? JSON.parse(saved) : [];
   });
 
-  // State Portofolio (Sinkron ke Web Utama)
+  useEffect(() => {
+    localStorage.setItem('tolongGuruPesanan', JSON.stringify(pesananList));
+  }, [pesananList]);
+
+  // State Portofolio (Sinkron dengan localStorage & Home.jsx)
   const [portofolioList, setPortofolioList] = useState(() => {
     const saved = localStorage.getItem('tolongGuruPortofolio');
-    return saved ? JSON.parse(saved) : [
-      { id: 1, judul: 'Poster Kelas Setara: Dari Gagasan Menjadi Gerakan', kategori: 'Infografis dan Poster', type: 'image', url: 'https://images.unsplash.com/photo-1576267423445-b2e0074d68a4?auto=format&fit=crop&w=600&q=80' }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
-  useEffect(() => {
-    localStorage.setItem('tolongGuruPesanan', JSON.stringify(pesananList));
-  }, [pesananList]);
-
-  // Filter State
-  const [cariKeyword, setCariKeyword] = useState('');
-  const [filterStatus, setFilterStatus] = useState('Semua status');
-  const [filterPic, setFilterPic] = useState('Semua PIC');
-  const [filterBayar, setFilterBayar] = useState('Semua pembayaran');
-
-  // Input Pesanan Form State
-  const [rawWhatsAppText, setRawWhatsAppText] = useState('');
-  const [formInput, setFormInput] = useState({
-    nama: '', sekolah: '', layanan: 'PPT', paket: 'Standar', jumlah: 1, total: 0,
-    tanggalMasuk: new Date().toISOString().split('T')[0], deadline: '', pic: '',
-    statusBayar: 'Belum bayar', sudahDibayar: 0, statusPesanan: 'Baru', revisi: 0,
-    sumber: 'WhatsApp', topik: ''
-  });
-
-  // Portofolio Form State
-  const [judulBaru, setJudulBaru] = useState('');
-  const [kategoriBaru, setKategoriBaru] = useState('PPT');
-  const [tipeMedia, setTipeMedia] = useState('image');
-  const [urlMedia, setUrlMedia] = useState('');
-
-  // Simpan LocalStorage otomatis
-  useEffect(() => {
-    localStorage.setItem('tolongGuruPesanan', JSON.stringify(pesananList));
-  }, [pesananList]);
 
   useEffect(() => {
     localStorage.setItem('tolongGuruPortofolio', JSON.stringify(portofolioList));
   }, [portofolioList]);
 
-  // Handler Input Pesanan Manual / Simpan
-  const handleSimpanPesanan = (e) => {
-    e.preventDefault();
-    if (!formInput.nama || !formInput.sekolah) {
-      alert("Nama dan Asal Sekolah wajib diisi!");
-      return;
-    }
-    const pesananBaru = {
-      id: `TG-${Date.now()}`,
-      ...formInput,
-      total: Number(formInput.total),
-      sudahDibayar: Number(formInput.sudahDibayar)
-    };
-    setPesananList([pesananBaru, ...pesananList]);
-    alert("Pesanan berhasil disimpan!");
-    setTabAktif('pesanan');
-  };
+  // State Filter & Pencarian Pesanan
+  const [cariKeyword, setCariKeyword] = useState('');
+  const [filterStatus, setFilterStatus] = useState('Semua Status');
+  const [filterBayar, setFilterBayar] = useState('Semua Pembayaran');
 
-  // Parser WhatsApp Text sederhana
-  const parseWhatsAppText = () => {
-    if (!rawWhatsAppText) return;
-    const lines = rawWhatsAppText.split('\n');
-    let namaVal = '', sekolahVal = '', topikVal = '';
-    lines.forEach(line => {
-      if (line.toLowerCase().includes('nama')) namaVal = line.split(':')[1]?.trim() || '';
-      if (line.toLowerCase().includes('sekolah')) sekolahVal = line.split(':')[1]?.trim() || '';
-      if (line.toLowerCase().includes('topik')) topikVal = line.split(':')[1]?.trim() || '';
-    });
-    setFormInput(prev => ({
-      ...prev,
-      nama: namaVal || prev.nama,
-      sekolah: sekolahVal || prev.sekolah,
-      topik: topikVal || prev.topik
-    }));
-    alert("Form berhasil diisi dari teks WhatsApp!");
-  };
+  // State Form Portofolio Baru (Ditambah linkDriveBaru)
+  const [judulBaru, setJudulBaru] = useState('');
+  const [kategoriBaru, setKategoriBaru] = useState('Infografis dan Poster');
+  const [tipeMedia, setTipeMedia] = useState('image');
+  const [urlMedia, setUrlMedia] = useState('');
+  const [linkDriveBaru, setLinkDriveBaru] = useState('');
 
-  // Hapus & Ubah Pesanan
-  const hapusPesanan = (id) => {
-    if (confirm("Yakin ingin menghapus pesanan ini?")) {
-      setPesananList(pesananList.filter(item => item.id !== id));
-    }
-  };
-
-  const updateStatusPesanan = (id, statusBaru) => {
-    setPesananList(pesananList.map(item => item.id === id ? { ...item, status: statusBaru } : item));
-  };
-
-  const lunaskanPesanan = (id) => {
-    setPesananList(pesananList.map(item => item.id === id ? { ...item, bayar: 'Lunas', sudahDibayar: item.total } : item));
-  };
-
-  // Portofolio Handler (Konversi Link Drive otomatis)
+  // Fungsi Tambah Portofolio
   const tambahPortofolio = (e) => {
     e.preventDefault();
-    if (!judulBaru) return alert("Judul karya harus diisi!");
-    let processedUrl = urlMedia;
-    if (processedUrl.includes("drive.google.com")) {
-      const match = processedUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || processedUrl.match(/\?id=([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) processedUrl = `https://lh3.googleusercontent.com/d/${match[1]}`;
+    if (!judulBaru || !urlMedia) {
+      alert("Mohon isi Judul dan URL Gambar Pratinjau.");
+      return;
     }
+
     const itemBaru = {
       id: Date.now(),
       judul: judulBaru,
       kategori: kategoriBaru,
       type: tipeMedia,
-      url: processedUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80'
+      url: urlMedia,
+      linkDrive: linkDriveBaru || urlMedia // Jika link drive kosong, arahkan ke url gambar
     };
-    setPortofolioList([...portofolioList, itemBaru]);
+
+    setPortofolioList([itemBaru, ...portofolioList]);
     setJudulBaru('');
     setUrlMedia('');
+    setLinkDriveBaru('');
     alert("Portofolio berhasil ditambahkan!");
   };
 
+  // Fungsi Hapus Portofolio
   const hapusPortofolio = (id) => {
-    if (confirm("Hapus portofolio ini?")) {
+    if (confirm("Yakin ingin menghapus portofolio ini?")) {
       setPortofolioList(portofolioList.filter(item => item.id !== id));
     }
   };
 
-  // Statistik & Filter
-  const pesananBaruCount = pesananList.filter(i => i.status === 'Baru').length;
-  const sedangBerjalanCount = pesananList.filter(i => i.status === 'Dikerjakan' || i.status === 'Dikonfirmasi').length;
-  const totalBelumTerbayar = pesananList
-    .filter(i => i.bayar !== 'Lunas')
-    .reduce((acc, curr) => acc + (curr.total - curr.sudahDibayar), 0);
+  // Fungsi Ubah Status Pesanan
+  const updateStatusPesanan = (id, statusBaru) => {
+    setPesananList(pesananList.map(item => item.id === id ? { ...item, status: statusBaru } : item));
+  };
 
-  const filteredPesanan = pesananList.filter(item => {
-    const matchKeyword = (item.nama + item.sekolah + item.topik + item.id).toLowerCase().includes(cariKeyword.toLowerCase());
-    const matchStatus = filterStatus === 'Semua status' || item.status === filterStatus;
-    const matchPic = filterPic === 'Semua PIC' || (filterPic === '(belum ada PIC)' ? !item.pic : item.pic === filterPic);
-    const matchBayar = filterBayar === 'Semua pembayaran' || item.bayar === filterBayar;
-    return matchKeyword && matchStatus && matchPic && matchBayar;
+  // Fungsi Ubah Status Bayar
+  const updateBayarPesanan = (id, bayarBaru) => {
+    setPesananList(pesananList.map(item => item.id === id ? { ...item, bayar: bayarBaru } : item));
+  };
+
+  // Fungsi Hapus Pesanan
+  const hapusPesanan = (id) => {
+    if (confirm("Yakin ingin menghapus data pesanan ini?")) {
+      setPesananList(pesananList.filter(item => item.id !== id));
+    }
+  };
+
+  // Filter Data Pesanan
+  const pesananFiltered = pesananList.filter(item => {
+    const matchKeyword = item.nama.toLowerCase().includes(cariKeyword.toLowerCase()) || 
+                         item.sekolah.toLowerCase().includes(cariKeyword.toLowerCase()) || 
+                         item.id.toLowerCase().includes(cariKeyword.toLowerCase());
+    const matchStatus = filterStatus === 'Semua Status' || item.status === filterStatus;
+    const matchBayar = filterBayar === 'Semua Pembayaran' || item.bayar === filterBayar;
+    return matchKeyword && matchStatus && matchBayar;
   });
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-800">
       
-      {/* NAVBAR */}
-      <nav className="bg-[#961214] text-white px-8 py-4 flex justify-between items-center shadow-md">
-        <div className="font-bold text-lg tracking-wide">
-          Tolong Guru · Admin
+      {/* HEADER ADMIN */}
+      <header className="bg-[#961214] text-white py-4 px-6 shadow-md flex justify-between items-center">
+        <div>
+          <h1 className="font-extrabold text-xl tracking-tight">Admin Dashboard Tolong Guru</h1>
+          <p className="text-xs text-red-200">Kelola pesanan masuk dan portofolio publik</p>
         </div>
-        <div className="flex space-x-2 text-sm font-medium">
-          <button onClick={() => setTabAktif('pesanan')} className={`px-4 py-2 rounded-lg transition ${tabAktif === 'pesanan' ? 'bg-white text-[#961214] font-bold shadow' : 'hover:bg-red-800'}`}>
-            Pesanan
-          </button>
-          <button onClick={() => setTabAktif('input')} className={`px-4 py-2 rounded-lg transition ${tabAktif === 'input' ? 'bg-white text-[#961214] font-bold shadow' : 'hover:bg-red-800'}`}>
-            Input Pesanan
-          </button>
-          <button onClick={() => setTabAktif('rekap')} className={`px-4 py-2 rounded-lg transition ${tabAktif === 'rekap' ? 'bg-white text-[#961214] font-bold shadow' : 'hover:bg-red-800'}`}>
-            Rekap
-          </button>
-          <button onClick={() => setTabAktif('portofolio')} className={`px-4 py-2 rounded-lg transition ${tabAktif === 'portofolio' ? 'bg-white text-[#961214] font-bold shadow' : 'hover:bg-red-800'}`}>
-            Kelola Portofolio
-          </button>
-          <a href="/" className="px-4 py-2 rounded-lg hover:bg-red-800 transition flex items-center">
-            Lihat Web Utama
+        <div className="flex items-center gap-4">
+          <a href="/" className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-4 py-2 rounded-lg transition border border-white/20">
+            ← Kembali ke Website Utama
           </a>
         </div>
-      </nav>
+      </header>
 
-      <main className="max-w-7xl mx-auto p-6 space-y-6">
+      {/* KONTROL TAB */}
+      <div className="max-w-7xl mx-auto px-6 mt-6">
+        <div className="flex gap-3 border-b border-slate-200 pb-3">
+          <button 
+            onClick={() => setActiveTab('pesanan')}
+            className={`px-5 py-2.5 rounded-xl font-bold text-sm transition ${activeTab === 'pesanan' ? 'bg-[#961214] text-white shadow' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}
+          >
+            📋 Kelola Pesanan ({pesananList.length})
+          </button>
+          <button 
+            onClick={() => setActiveTab('portofolio')}
+            className={`px-5 py-2.5 rounded-xl font-bold text-sm transition ${activeTab === 'portofolio' ? 'bg-[#961214] text-white shadow' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}
+          >
+            🖼️ Kelola Portofolio ({portofolioList.length})
+          </button>
+        </div>
+      </div>
 
-        {/* TAB 1: PESANAN */}
-        {tabAktif === 'pesanan' && (
-          <div className="space-y-6">
+      {/* KONTEN UTAMA */}
+      <main className="max-w-7xl mx-auto px-6 py-6">
+        
+        {/* TAB PESANAN */}
+        {activeTab === 'pesanan' && (
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
             
-            {/* STATS CARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Pesanan baru</p>
-                <p className="text-3xl font-black text-[#961214]">{pesananBaruCount}</p>
-              </div>
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Sedang berjalan</p>
-                <p className="text-3xl font-black text-slate-800">{sedangBerjalanCount}</p>
-              </div>
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <p className="text-sm text-slate-500 mb-1">Belum terbayar</p>
-                <p className="text-3xl font-black text-orange-600">Rp{totalBelumTerbayar.toLocaleString('id-ID')}</p>
-              </div>
-            </div>
-
-            {/* FILTER BAR */}
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Filter & Pencarian */}
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
               <input 
                 type="text" 
-                placeholder="Cari nama, sekolah, topik, ID" 
+                placeholder="Cari nama, sekolah, atau ID pesanan..." 
                 value={cariKeyword} 
-                onChange={(e) => setCariKeyword(e.target.value)} 
-                className="border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#961214]"
+                onChange={(e) => setCariKeyword(e.target.value)}
+                className="w-full md:w-1/3 border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-slate-50 outline-none"
               />
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none bg-white">
-                <option value="Semua status">Semua status</option>
-                <option value="Baru">Baru</option>
-                <option value="Dikonfirmasi">Dikonfirmasi</option>
-                <option value="Dikerjakan">Dikerjakan</option>
-                <option value="Selesai">Selesai</option>
-              </select>
-              <select value={filterPic} onChange={(e) => setFilterPic(e.target.value)} className="border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none bg-white">
-                <option value="Semua PIC">Semua PIC</option>
-                <option value="Metia">Metia</option>
-                <option value="(belum ada PIC)">(belum ada PIC)</option>
-              </select>
-              <select value={filterBayar} onChange={(e) => setFilterBayar(e.target.value)} className="border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none bg-white">
-                <option value="Semua pembayaran">Semua pembayaran</option>
-                <option value="Lunas">Lunas</option>
-                <option value="DP">DP</option>
-                <option value="Belum bayar">Belum bayar</option>
-              </select>
+              <div className="flex gap-3 w-full md:w-auto">
+                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 outline-none">
+                  <option>Semua Status</option>
+                  <option>Baru</option>
+                  <option>Proses</option>
+                  <option>Selesai</option>
+                </select>
+                <select value={filterBayar} onChange={(e) => setFilterBayar(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 outline-none">
+                  <option>Semua Pembayaran</option>
+                  <option>Lunas</option>
+                  <option>Belum bayar</option>
+                </select>
+              </div>
             </div>
 
-            {/* TABEL PESANAN */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <table className="w-full text-left border-collapse">
+            {/* Tabel Pesanan */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-sm">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    <th className="p-4">Pemesan</th>
-                    <th className="p-4">Layanan</th>
-                    <th className="p-4">Total</th>
-                    <th className="p-4">Bayar</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4">Deadline</th>
-                    <th className="p-4">Aksi</th>
+                  <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                    <th className="p-3">ID & Tanggal</th>
+                    <th className="p-3">Pemesan & Sekolah</th>
+                    <th className="p-3">Detail Layanan</th>
+                    <th className="p-3">Total & Bayar</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3 text-center">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {filteredPesanan.length === 0 ? (
-                    <tr><td colSpan="7" className="p-6 text-center text-slate-400">Tidak ada pesanan ditemukan.</td></tr>
+                <tbody className="divide-y divide-slate-100">
+                  {pesananFiltered.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="text-center py-12 text-slate-400">Belum ada data pesanan yang masuk.</td>
+                    </tr>
                   ) : (
-                    filteredPesanan.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50">
-                        <td className="p-4 align-top font-medium">
-                          {item.nama}<br/>
-                          <span className="text-xs text-slate-400 font-normal">{item.sekolah}</span><br/>
-                          <span className="text-[10px] text-slate-400 font-mono">{item.id}</span>
+                    pesananFiltered.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/80">
+                        <td className="p-3 align-top">
+                          <span className="font-bold text-[#961214]">{item.id}</span>
+                          <div className="text-xs text-slate-400">{item.tanggalMasuk}</div>
                         </td>
-                        <td className="p-4 align-top">
-                          {item.layanan}<br/>
-                          <span className="text-xs text-slate-500">{item.paket}</span><br/>
-                          <span className="text-xs text-slate-400">Topik: {item.topik}</span>
+                        <td className="p-3 align-top">
+                          <div className="font-bold">{item.nama}</div>
+                          <div className="text-xs text-slate-500">{item.sekolah}</div>
+                          <div className="text-xs text-slate-400 mt-1 italic">Topik: {item.topik}</div>
                         </td>
-                        <td className="p-4 align-top font-bold">Rp{item.total.toLocaleString('id-ID')}</td>
-                        <td className="p-4 align-top">
-                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${item.bayar === 'Lunas' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                            {item.bayar}
-                          </span>
-                          <div className="text-xs text-slate-500 mt-1">Rp{item.sudahDibayar.toLocaleString('id-ID')}</div>
-                          {item.bayar !== 'Lunas' && (
-                            <button onClick={() => lunaskanPesanan(item.id)} className="text-[10px] text-red-600 font-bold underline mt-1 block">Lunaskan</button>
-                          )}
+                        <td className="p-3 align-top">
+                          <div className="font-semibold">{item.layanan}</div>
+                          <div className="text-xs text-slate-500">Paket: {item.paket}</div>
                         </td>
-                        <td className="p-4 align-top">
+                        <td className="p-3 align-top">
+                          <div className="font-bold">Rp{item.total?.toLocaleString('id-ID')}</div>
+                          <select 
+                            value={item.bayar} 
+                            onChange={(e) => updateBayarPesanan(item.id, e.target.value)}
+                            className={`text-xs mt-1 font-bold px-2 py-1 rounded-md border outline-none ${item.bayar === 'Lunas' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}
+                          >
+                            <option value="Lunas">Lunas</option>
+                            <option value="Belum bayar">Belum bayar</option>
+                          </select>
+                        </td>
+                        <td className="p-3 align-top">
                           <select 
                             value={item.status} 
                             onChange={(e) => updateStatusPesanan(item.id, e.target.value)}
-                            className="border border-slate-200 rounded px-2 py-1 text-xs font-bold bg-slate-50"
+                            className="text-xs font-bold px-2 py-1 rounded-md border border-slate-200 bg-slate-50 outline-none"
                           >
                             <option value="Baru">Baru</option>
-                            <option value="Dikonfirmasi">Dikonfirmasi</option>
-                            <option value="Dikerjakan">Dikerjakan</option>
+                            <option value="Proses">Proses</option>
                             <option value="Selesai">Selesai</option>
                           </select>
-                          <div className="text-xs text-slate-400 mt-1">{item.pic || 'Belum ada PIC'}</div>
                         </td>
-                        <td className="p-4 align-top text-xs text-slate-600">{item.deadline}</td>
-                        <td className="p-4 align-top space-x-1">
-                          <button onClick={() => alert("Fitur edit detail pesanan")} className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded text-xs font-bold hover:bg-slate-200">Ubah</button>
-                          <button onClick={() => hapusPesanan(item.id)} className="bg-red-50 text-red-600 px-2.5 py-1 rounded text-xs font-bold hover:bg-red-100">Hapus</button>
+                        <td className="p-3 align-top text-center">
+                          <button onClick={() => hapusPesanan(item.id)} className="text-xs text-red-600 hover:text-red-800 font-bold bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition">
+                            Hapus
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -291,222 +229,122 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* TAB 2: INPUT PESANAN */}
-        {tabAktif === 'input' && (
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-              <h3 className="font-bold text-base">Tempel pesan WhatsApp</h3>
-              <textarea 
-                value={rawWhatsAppText} 
-                onChange={(e) => setRawWhatsAppText(e.target.value)}
-                placeholder="Tempel pesan dari customer. Baris berformat 'Nama: ...', 'Sekolah: ...' akan mengisi form otomatis."
-                className="w-full border border-slate-300 rounded-xl p-4 text-sm h-28 outline-none focus:ring-2 focus:ring-[#961214]"
-              ></textarea>
-              <button onClick={parseWhatsAppText} className="bg-slate-200 text-slate-700 font-bold px-5 py-2 rounded-xl text-sm hover:bg-slate-300">
-                Isi form dari pesan
-              </button>
-            </div>
+        {/* TAB PORTOFOLIO */}
+        {activeTab === 'portofolio' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            {/* Form Tambah Portofolio */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit">
+              <h3 className="font-extrabold text-lg mb-4 text-slate-800">Tambah Portofolio Baru</h3>
+              <form onSubmit={tambahPortofolio} className="space-y-4 text-sm">
+                <div>
+                  <label className="block font-medium mb-1">Judul Karya</label>
+                  <input 
+                    type="text" 
+                    placeholder="Contoh: Infografis Pembelajaran IPA" 
+                    value={judulBaru} 
+                    onChange={(e) => setJudulBaru(e.target.value)} 
+                    className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none"
+                  />
+                </div>
 
-            <form onSubmit={handleSimpanPesanan} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
-              <h3 className="font-bold text-lg">Form Pesanan Baru</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
                 <div>
-                  <label className="block font-medium mb-1">Nama</label>
-                  <input type="text" value={formInput.nama} onChange={(e) => setFormInput({...formInput, nama: e.target.value})} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none" required />
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Sekolah</label>
-                  <input type="text" value={formInput.sekolah} onChange={(e) => setFormInput({...formInput, sekolah: e.target.value})} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none" required />
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Layanan</label>
-                  <input type="text" value={formInput.layanan} onChange={(e) => setFormInput({...formInput, layanan: e.target.value})} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none" />
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Paket</label>
-                  <input type="text" value={formInput.paket} onChange={(e) => setFormInput({...formInput, paket: e.target.value})} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none" />
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Jumlah</label>
-                  <input type="number" value={formInput.jumlah} onChange={(e) => setFormInput({...formInput, jumlah: e.target.value})} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none" />
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Total harga (Rp)</label>
-                  <input type="number" value={formInput.total} onChange={(e) => setFormInput({...formInput, total: e.target.value})} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none" />
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Tanggal masuk</label>
-                  <input type="date" value={formInput.tanggalMasuk} onChange={(e) => setFormInput({...formInput, tanggalMasuk: e.target.value})} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none" />
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Deadline</label>
-                  <input type="date" value={formInput.deadline} onChange={(e) => setFormInput({...formInput, deadline: e.target.value})} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none" />
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">PIC produksi</label>
-                  <select value={formInput.pic} onChange={(e) => setFormInput({...formInput, pic: e.target.value})} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none bg-white">
-                    <option value="">- Pilih PIC -</option>
-                    <option value="Metia">Metia</option>
-                    <option value="Ghani">Ghani</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Status bayar</label>
-                  <select value={formInput.statusBayar} onChange={(e) => setFormInput({...formInput, statusBayar: e.target.value})} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none bg-white">
-                    <option value="Belum bayar">Belum bayar</option>
-                    <option value="DP">DP</option>
-                    <option value="Lunas">Lunas</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Sudah dibayar (Rp)</label>
-                  <input type="number" value={formInput.sudahDibayar} onChange={(e) => setFormInput({...formInput, sudahDibayar: e.target.value})} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none" />
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Status pesanan</label>
-                  <select value={formInput.statusPesanan} onChange={(e) => setFormInput({...formInput, statusPesanan: e.target.value})} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none bg-white">
-                    <option value="Baru">Baru</option>
-                    <option value="Dikonfirmasi">Dikonfirmasi</option>
-                    <option value="Dikerjakan">Dikerjakan</option>
-                    <option value="Selesai">Selesai</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block font-medium mb-1 text-sm">Topik dan catatan</label>
-                <textarea value={formInput.topik} onChange={(e) => setFormInput({...formInput, topik: e.target.value})} className="w-full border border-slate-300 rounded-xl p-4 text-sm h-24 outline-none"></textarea>
-              </div>
-              <div className="flex gap-4">
-                <button type="submit" className="bg-[#961214] text-white font-bold px-8 py-3 rounded-xl hover:bg-[#7a0e10] transition">Simpan pesanan</button>
-                <button type="button" onClick={() => setFormInput({nama:'', sekolah:'', layanan:'PPT', paket:'Standar', jumlah:1, total:0, tanggalMasuk:'', deadline:'', pic:'', statusBayar:'Belum bayar', sudahDibayar:0, statusPesanan:'Baru', revisi:0, sumber:'WhatsApp', topik:''})} className="bg-slate-200 text-slate-700 font-bold px-6 py-3 rounded-xl">Kosongkan</button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* TAB 3: REKAP */}
-        {tabAktif === 'rekap' && (
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex justify-between items-center">
-              <select className="border border-slate-300 rounded-xl px-4 py-2 text-sm outline-none bg-white font-medium">
-                <option>Semua waktu</option>
-              </select>
-              <div className="space-x-3">
-                <button onClick={() => alert("Mengunduh CSV...")} className="bg-slate-100 border border-slate-300 text-slate-700 font-bold px-4 py-2 rounded-xl text-sm hover:bg-slate-200">Unduh CSV</button>
-                <button onClick={() => alert("Rekap disalin!")} className="bg-slate-100 border border-slate-300 text-slate-700 font-bold px-4 py-2 rounded-xl text-sm hover:bg-slate-200">Salin rekap teks</button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <p className="text-xs text-slate-500 mb-1">Jumlah pesanan</p>
-                <p className="text-2xl font-black">{pesananList.length}</p>
-              </div>
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <p className="text-xs text-slate-500 mb-1">Total nilai pesanan</p>
-                <p className="text-2xl font-black">Rp{pesananList.reduce((a,b)=>a+b.total,0).toLocaleString('id-ID')}</p>
-              </div>
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <p className="text-xs text-slate-500 mb-1">Sudah diterima</p>
-                <p className="text-2xl font-black text-green-600">Rp{pesananList.reduce((a,b)=>a+b.sudahDibayar,0).toLocaleString('id-ID')}</p>
-              </div>
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <p className="text-xs text-slate-500 mb-1">Belum dibayar</p>
-                <p className="text-2xl font-black text-orange-600">Rp{totalBelumTerbayar.toLocaleString('id-ID')}</p>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-              <h3 className="font-bold text-lg">Per layanan</h3>
-              <table className="w-full text-left text-sm border-collapse">
-                <thead>
-                  <tr className="border-b text-xs text-slate-500 uppercase">
-                    <th className="pb-3">Layanan</th>
-                    <th className="pb-3">Pesanan</th>
-                    <th className="pb-3">Total</th>
-                    <th className="pb-3">Terbayar</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {['PPT', 'Infografis dan Poster', 'Video Pembelajaran', 'Take Konten ke Sekolah + Edit', 'Take Konten (tanpa edit)'].map((lay, idx) => {
-                    const matched = pesananList.filter(i => i.layanan === lay);
-                    if (matched.length === 0) return null;
-                    return (
-                      <tr key={idx}>
-                        <td className="py-3 font-medium">{lay}</td>
-                        <td className="py-3">{matched.length}</td>
-                        <td className="py-3 font-bold">Rp{matched.reduce((a,b)=>a+b.total,0).toLocaleString('id-ID')}</td>
-                        <td className="py-3">Rp{matched.reduce((a,b)=>a+b.sudahDibayar,0).toLocaleString('id-ID')}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 4: KELOLA PORTOFOLIO */}
-        {tabAktif === 'portofolio' && (
-          <div className="space-y-8">
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-              <h2 className="text-xl font-bold mb-4">Tambah Portofolio & Media Preview</h2>
-              <form onSubmit={tambahPortofolio} className="space-y-4 max-w-xl">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Judul Karya</label>
-                  <input type="text" value={judulBaru} onChange={(e) => setJudulBaru(e.target.value)} placeholder="Contoh: Media Pembelajaran Interaktif" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Kategori</label>
-                  <select value={kategoriBaru} onChange={(e) => setKategoriBaru(e.target.value)} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none bg-white">
-                    <option value="PPT">PPT (Presentasi)</option>
+                  <label className="block font-medium mb-1">Kategori</label>
+                  <select 
+                    value={kategoriBaru} 
+                    onChange={(e) => setKategoriBaru(e.target.value)} 
+                    className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none"
+                  >
                     <option value="Infografis dan Poster">Infografis dan Poster</option>
                     <option value="Video Pembelajaran">Video Pembelajaran</option>
-                    <option value="Website">Website / Edutech App</option>
+                    <option value="PPT">PPT</option>
+                    <option value="Website">Website</option>
                   </select>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium mb-1">Tipe Pratinjau</label>
-                  <select value={tipeMedia} onChange={(e) => setTipeMedia(e.target.value)} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none bg-white">
-                    <option value="image">Gambar / Poster (URL / Link Drive publik)</option>
+                  <label className="block font-medium mb-1">Tipe Media</label>
+                  <select 
+                    value={tipeMedia} 
+                    onChange={(e) => setTipeMedia(e.target.value)} 
+                    className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none"
+                  >
+                    <option value="image">Gambar / Poster (URL Gambar)</option>
                     <option value="embed">Video / Embed YouTube</option>
                   </select>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium mb-1">URL Media / Link</label>
-                  <input type="text" value={urlMedia} onChange={(e) => setUrlMedia(e.target.value)} placeholder="Masukkan link gambar / YouTube..." className="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none" />
+                  <label className="block font-medium mb-1">URL Gambar Pratinjau (Thumbnail)</label>
+                  <input 
+                    type="text" 
+                    placeholder="https://images.unsplash.com/..." 
+                    value={urlMedia} 
+                    onChange={(e) => setUrlMedia(e.target.value)} 
+                    className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none"
+                  />
                 </div>
-                <button type="submit" className="bg-[#961214] text-white font-bold px-6 py-3 rounded-xl hover:bg-[#7a0e10] transition">Simpan Portofolio</button>
+
+                {/* Input Khusus Link Google Drive */}
+                <div>
+                  <label className="block font-medium mb-1">Link Google Drive / File Asli</label>
+                  <input 
+                    type="text" 
+                    placeholder="https://drive.google.com/file/d/..." 
+                    value={linkDriveBaru} 
+                    onChange={(e) => setLinkDriveBaru(e.target.value)} 
+                    className="w-full border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">Link tujuan saat tombol "Buka File Asli" diklik.</p>
+                </div>
+
+                <button type="submit" className="w-full bg-[#961214] text-white font-bold py-3 rounded-xl hover:bg-[#7a0e10] transition shadow">
+                  Simpan Portofolio
+                </button>
               </form>
             </div>
 
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-              <h2 className="text-xl font-bold mb-4">Daftar Portofolio Publik & Pratinjau</h2>
+            {/* Daftar Portofolio */}
+            <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h3 className="font-extrabold text-lg mb-4 text-slate-800">Daftar Portofolio Publik ({portofolioList.length})</h3>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {portofolioList.map((item) => (
-                  <div key={item.id} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 flex flex-col justify-between">
-                    <div className="h-44 bg-slate-200 relative overflow-hidden flex items-center justify-center">
-                      {item.type === 'image' ? (
-                        <img src={item.url} alt={item.judul} className="w-full h-full object-cover" />
-                      ) : (
-                        <iframe src={item.url} title={item.judul} className="w-full h-full"></iframe>
-                      )}
-                    </div>
-                    <div className="p-4 flex justify-between items-center">
-                      <div>
-                        <span className="text-[10px] font-bold text-[#961214] uppercase">{item.kategori}</span>
-                        <h4 className="font-bold text-sm text-slate-800">{item.judul}</h4>
+                {portofolioList.length === 0 ? (
+                  <div className="col-span-full text-center py-12 text-slate-400">Belum ada portofolio yang ditambahkan.</div>
+                ) : (
+                  portofolioList.map((item) => (
+                    <div key={item.id} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 flex flex-col justify-between">
+                      <div className="h-44 bg-slate-900 relative flex items-center justify-center p-2">
+                        {item.type === 'image' ? (
+                          <img src={item.url} alt={item.judul} className="w-full h-full object-contain rounded-lg" />
+                        ) : (
+                          <iframe src={item.url} title={item.judul} className="w-full h-full"></iframe>
+                        )}
                       </div>
-                      <button onClick={() => hapusPortofolio(item.id)} className="bg-red-100 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-200 transition">Hapus</button>
+                      <div className="p-4 flex flex-col justify-between flex-1 bg-white">
+                        <div>
+                          <span className="text-[10px] font-bold text-[#961214] bg-red-50 px-2 py-0.5 rounded uppercase">{item.kategori}</span>
+                          <h4 className="font-bold text-base mt-2 leading-snug">{item.judul}</h4>
+                          <p className="text-xs text-slate-400 mt-1 truncate">Drive: {item.linkDrive || item.url}</p>
+                        </div>
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center">
+                          <span className="text-xs text-slate-500">ID: {item.id}</span>
+                          <button onClick={() => hapusPortofolio(item.id)} className="text-xs text-red-600 font-bold hover:text-red-800 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition">
+                            Hapus Karya
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
+
           </div>
         )}
 
       </main>
+
     </div>
   );
-} 
+}

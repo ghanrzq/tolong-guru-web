@@ -249,7 +249,7 @@ export default function Home() {
                     </div>
                     <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
                       <a 
-                        href={item.url} 
+                        href={item.linkDrive || item.url} // Menggunakan link khusus Drive jika ada, fallback ke url gambar
                         target="_blank" 
                         rel="noreferrer" 
                         className="text-xs font-bold text-[#961214] hover:text-[#7a0e10] flex items-center gap-1 bg-red-50 px-3 py-2 rounded-lg transition"
