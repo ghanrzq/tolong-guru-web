@@ -58,10 +58,7 @@ export default function Home() {
     if (saved) {
       setPortofolioPublik(JSON.parse(saved));
     } else {
-      setPortofolioPublik([
-        { id: 1, judul: 'Poster Kelas Setara: Dari Gagasan Menjadi Gerakan', kategori: 'Infografis dan Poster', type: 'image', url: 'https://images.unsplash.com/photo-1576267423445-b2e0074d68a4?auto=format&fit=crop&w=600&q=80' },
-        { id: 2, judul: 'Slide Interaktif Biologi SMA', kategori: 'PPT', type: 'embed', url: 'https://www.youtube.com/embed/dQw4w9WgXcQ' }
-      ]);
+      setPortofolioPublik([]); // Ubah menjadi kosong agar tidak memunculkan data contoh otomatis
     }
   }, []);
 
